@@ -1,0 +1,370 @@
+---
+title: "ADA Final Project"
+author: "Supriya"
+date: "2024-12-04"
+output:
+  word_document: default
+  html_document: default
+---
+
+# 1. Installing packages and loading libraries
+
+```{r}
+pacman::p_load(haven, tidyverse, readr, table1, DiagrammeR, rsvg, forcats)
+
+install.packages("readxl")
+library(readxl)
+```
+
+# 2. Importing the dataframe
+
+```{r}
+desc <- read_excel("/Users/supri/Library/CloudStorage/OneDrive-WashingtonUniversityinSt.Louis/Fall_2024/Advanced_Data_Analysis/Final project ADA/HIAS_dataset_withage_english_translation.xlsx") 
+
+```
+
+# 3. Selecting variables of interest
+
+```{r}
+# selecting variables of interest
+
+desc2 <- desc %>%
+  select(resp_age, resp_gender, nationality, city, dependency_ratio, status, school_level, hhsize, score1a, score1b, score2, score3, score4, score5, score6, domain6a_1, domain6a_2, domain6a_3, domain6a_4, domain6a_5, domain6a_6, domain6a_7, domain6a_8, score7, score8, score9, score10, score11, score12, SRI, phq9)
+
+```
+
+# 4. Data management for the analysis
+
+```{r}
+# replacing 'Grass' in city variable with 'Pasto'
+
+desc3 <- desc2 %>%
+  mutate(
+    city = case_when(
+      city == "Grass" ~ "Pasto",
+      TRUE ~ city)
+  )
+
+table(desc3$city, useNA = "always")
+
+# only including female respondents and dropping 'male' and 'other' gender
+
+desc4 <- desc3[!desc3$resp_gender %in% c("Male", "Other"), ]
+
+## 7 observations were excluded.
+
+#replacing infinite values (represened by NA) in 'dependency_ratio' with 0
+
+desc4$dependency_ratio[is.na(desc4$dependency_ratio)] <- 0
+
+#replacing NAs in score 1a to 12 with 0
+
+desc4 <- desc4 %>%
+  mutate(across(c(score1a, score1b, score2, score3, score4, score5, score6,
+                  score7, score8, score9, score10, score11, score12), ~replace(., is.na(.), 0)))
+
+```
+
+# 5. Looking for any missing values
+
+```{r}
+#Looking for any missing values
+
+summary(desc4)
+
+# Summarize the number of NAs in each column
+na_summary <- desc4 %>%
+  summarise(across(everything(), ~sum(is.na(.))))
+
+# Print the summary
+print(na_summary)
+```
+
+# 6. Making a figure showing the number of observations excluded
+
+```{r}
+grViz(diagram = "digraph flowchart{ # gives beginning of flowchart
+
+      # node definitions with substituted label text
+      
+      node [fontname = Helvetica, shape = rectangle, fontsize=10] 
+      
+      # Define the nodes: nodes indicate how many boxes you will have in your diagram. Since I have three sets of exclusions, I will have four nodes.
+      
+      node1 [label = '@@1'] # starting number
+      node2 [label = '@@2'] # number after excluding male and other gender
+      
+      # edge definitions with the node IDs are used to indicate how the rectangle boxes flow from each other. 
+      
+      node1 -> node2
+}
+      # This set of code provides the text in each rectangle box.
+      [1]: 'Starting dataframe number of observations, n = 348'
+      [2]: 'Excluding 7 individuals who were male or other, n = 341'
+      ")
+```
+
+# 7. Checking variables types in dataframe
+
+```{r}
+str(desc4)
+```
+
+# 8. Getting header of dataframe
+
+```{r}
+head(desc4)
+```
+
+# 9. recoding variables for analysis
+
+```{r}
+# nationality - changing it to numeric and setting Colombia as reference
+
+table(desc4$nationality, useNA = "always")
+desc4 <- desc4 %>% 
+  mutate(nationality_new = case_when(nationality== "Colombia" ~ 0,
+                             nationality== "Venezuela" ~ 1,
+                             nationality== "Both (Colombia and Venezuela)" ~ 2
+                             ))
+desc4$nationality_new <- factor(desc4$nationality_new, levels = c(0:2), labels = c("Colombian", "Venezuelan", "Both"))
+
+# city - changing it to numeric and setting Cali as reference
+
+table(desc4$city, useNA = "always")
+desc4 <- desc4 %>% 
+  mutate(city_new = case_when(city== "Cali" ~ 0,
+                             city== "Ipiales" ~ 1,
+                             city== "Pasto" ~ 2,
+                             city== "Popayan" ~ 3
+                             ))
+desc4$city_new <- factor(desc4$city_new, levels = c(0:3), labels = c("Cali", "Ipiales", "Pasto", "Popayan"))
+
+# Status - changing it to numeric and setting 'Host population - Colombians' as reference
+
+table(desc4$status, useNA = "always")
+desc4 <- desc4 %>% 
+  mutate(status_new = case_when(status== "Host population - Colombians" ~ 0,
+                             status== "Colombian returnees" ~ 1,
+                             status== "Returned Colombian refugees or migrants" ~ 1,
+                             status== "Returning Colombians Other / Not applicable" ~ 1,
+                             status== "Internally displaced persons" ~ 2,
+                             status== "Internally displaced persons Other / Not applicable" ~ 2,
+                             status== "Refugees or migrants" ~ 3,
+                             status== "Refugees or migrants" ~ 3,
+                             status== "Refugees or migrants" ~ 3,
+                             status== "Refugees or migrants Internally displaced" ~ 3, #because the participant is Venezuelan
+                             status== "Other / Not applicable" ~ 4,
+                                                         ))
+desc4$status_new <- factor(desc4$status_new, levels = c(0:4), labels = c("Host population – Colombians", "Colombian returnees", "Internally displaced persons", "Refugees or migrants", "Other / Not applicable"))
+
+# School level - changing it to numeric and setting No Primary School Completion as reference
+
+table(desc4$school_level, useNA = "always")
+desc4 <- desc4 %>% 
+  mutate(school_level_new = case_when(school_level== "No Primary School Completion" ~ 0,
+                             school_level== "Primary School Completion" ~ 1,
+                             school_level== "Secondary School Completion" ~ 1,
+                             ))
+desc4$school_level_new <- factor(desc4$school_level_new, levels = c(0:1), labels = c("No primary school completion", "Primary school completion"))
+
+# Depression level - categorizing phq9 score and setting 'No depression' as reference
+desc4 <- desc4 %>% 
+mutate(
+    depression_level = case_when(
+      phq9 < 1 ~ 0,
+      phq9 >= 1 & phq9 <= 4 ~ 1,
+      phq9 >= 5 & phq9 <= 9 ~ 2,
+      phq9 >= 10 & phq9 <= 14 ~ 2,
+      phq9 >= 15 & phq9 <= 19 ~ 3,
+      phq9 >= 20 & phq9 <= 27 ~ 4
+    )
+  ) %>%
+  mutate(
+    depression_level = fct_recode(as.factor(depression_level),
+                                  "No Depression" = "0",
+                                  "Minimal" = "1",
+                                  "Mild" = "2",
+                                  "Moderate" = "3",
+                                  "Moderately severe" = "4",
+                                  "Severe" = "5")
+  )
+
+table(desc4$depression_level, useNA = "always")
+
+```
+
+# 10. Creating a descriptive table with all variables of interest
+
+```{r}
+# Define labels for the variables
+
+label(desc4$resp_age) <- "Age of the respondent"
+label(desc4$nationality_new) <- "Nationality"
+label(desc4$city_new) <- "City of residence"
+label(desc4$dependency_ratio) <- "Dependency ratio"
+label(desc4$status_new) <- "Refugee status"
+label(desc4$school_level_new) <- "Completed primary school"
+label(desc4$hhsize) <- "Household size"
+label(desc4$score1a) <- "Domain 1a: Housing"
+label(desc4$score1b) <- "Domain 1b: Rent"
+label(desc4$score2) <- "Domain 2: Food"
+label(desc4$score3) <- "Domain 3: Education"
+label(desc4$score4) <- "Domain 4: Health care"
+label(desc4$score5) <- "Domain 5: Health status"
+label(desc4$score6) <- "Domain 6: Safety"
+label(desc4$score7) <- "Domain 7: Employment"
+label(desc4$score8) <- "Domain 8: Financial resources"
+label(desc4$score9) <- "Domain 9: Assistance"
+label(desc4$score10) <- "Domain 10: Debt"
+label(desc4$score11) <- "Domain 11: Savings"
+label(desc4$score12) <- "Domain 12: Social capital"
+label(desc4$SRI) <- "Total SRI score"
+label(desc4$depression_level) <- "PHQ-9 depression level"
+
+#Creating a descriptive table
+
+table1(~resp_age + nationality_new + city_new + dependency_ratio + status_new + school_level_new + hhsize + score1a + score1b + score2 + score3 + score4 + score5 + score6 + score7 + score8 + score9 + score10 + score11 + score12 + SRI + depression_level, data = desc4)
+
+```
+
+# 11. Checking the variables of interest and their distribution
+
+```{R}
+#install and load necessary packages
+pacman::p_load(nnet, MASS, funModeling, brant, broom, car)
+describe(desc4)
+```
+
+# 12a. Using the multinom function to estimate multinomial logistic regression without adjusting for confounders for objective 1 (overall safety score as dependent variable).
+
+```{r}
+model1 <- multinom(desc4$depression_level ~ desc4$score6, data=desc4)
+summary(model1)
+```
+
+## Hypothesis testing
+
+Since the multinomial function does not report the p-values automatically, using the z-test to test the individual parameters.
+
+```{r}
+# z-scores
+summary <- summary(model1)
+z <- summary(model1)$coefficients/summary(model1)$standard.errors
+z
+```
+
+```{r}
+# 2-tailed z test p-values 
+p <- (1 - pnorm(abs(z),0,1))*2
+p
+
+# Moderately severe is significant at p<.05
+```
+
+## calculating odds ratios and 95% CIs.
+
+```{r}
+# OR and CIs
+tidy(model1, conf.int=TRUE, exponentiate = TRUE)
+
+```
+
+## 12b. Adjusting for confounders as per DAG for objective 1: resp_age, Assistance (score9), Debt (score10), Dependency ratio (dependency_ratio), Employment (score7), Financial resources (score8), Overall SRI (SRI), Refugee status (status_new)
+
+```{r}
+
+model2 <- multinom(depression_level ~ score6 + resp_age + score9 + score10 + dependency_ratio + score7 + score8 + SRI + status_new, data=desc4)
+summary(model2)
+
+## extract coefficients from the model, exponentiate and CI
+tidy(model2, conf.int=TRUE, exponentiate = TRUE)
+```
+
+## Identifying why NaNs exist
+
+```{r}
+summary(model2)
+
+```
+
+##Variable 'status_new' has high coefficients. Therefore, removing the variable 'status_new' to check if it fixes the NaNs.
+
+```{r}
+model3 <- multinom(depression_level ~ score6 + resp_age + score9 + score10 + dependency_ratio + score7 + score8 + SRI, data=desc4)
+summary(model3)
+
+##NaNs are fixed.
+
+## extract coefficients from the model, exponentiate and CI
+tidy(model3, conf.int=TRUE, exponentiate = TRUE)
+```
+
+-For every one year increase in age, the odds of taking drugB vs drugA increases by 1.14 times (95% CI 1.07-1.21) after adjusting for sex.
+
+#### 10. Compare the results between `model1` and `model2` (hint to make this easy to view, you can use the compareCoefs function from the car package).
+
+```{r}
+compareCoefs(model1, model3, zvals=TRUE, pvals=TRUE)
+```
+
+# 13a. Estimating multinomial logistic regression without adjusting for confounders for objective 2 (eight sub-domains of safety domains)
+
+```{r}
+#renaming domain6a_1 to domain6a_8
+
+desc4 <- desc4 %>%
+  rename(
+    Conflict = domain6a_1,
+    Discrimination = domain6a_2,
+    Harassment_or_threats_or_violence = domain6a_3,
+    COVID_or_other_infectious_diseases = domain6a_4,
+    Arrest_or_deportation = domain6a_5,
+    Kidnapping = domain6a_6,
+    Theft_or_robbery = domain6a_7,
+    Unsafe_housing_eviction = domain6a_8
+  )
+
+#Running Multinomial Regression without adjusting for confounders
+model4 <- multinom(depression_level ~ 
+                   Conflict + Discrimination + Harassment_or_threats_or_violence + COVID_or_other_infectious_diseases + Arrest_or_deportation + Kidnapping +  Theft_or_robbery + Unsafe_housing_eviction,
+                   data = desc4)
+summary(model4)
+
+## extract coefficients from the model, exponentiate and CI
+tidy(model4, conf.int=TRUE, exponentiate = TRUE)
+```
+
+## 13b. Adjusting for confounders as per DAG for objective 2: resp_age, Assistance (score9), Debt (score10), Dependency ratio (dependency_ratio), Employment (score7), Financial resources (score8), and Overall SRI (SRI).
+
+```{r}
+model5 <- multinom(depression_level ~ 
+                   Conflict + Discrimination + Harassment_or_threats_or_violence + COVID_or_other_infectious_diseases + Arrest_or_deportation + Kidnapping +  Theft_or_robbery + Unsafe_housing_eviction + resp_age + score9 + score10 + dependency_ratio + score7 + score8 + SRI,
+                   data = desc4)
+summary(model5)
+
+## extract coefficients from the model, exponentiate and CI
+tidy(model5, conf.int=TRUE, exponentiate = TRUE)
+```
+
+## Checking for NAs
+
+```{r}
+table(desc4$Kidnapping)
+
+# Cross-tabulation
+cross_tab <- table(desc4$Kidnapping, desc4$depression_level)
+print(cross_tab)
+```
+
+#Running the model without variable 'Kidnapping'
+
+```{r}
+model6 <- multinom(depression_level ~ 
+                   Conflict + Discrimination + Harassment_or_threats_or_violence + COVID_or_other_infectious_diseases + Arrest_or_deportation +  Theft_or_robbery + Unsafe_housing_eviction + resp_age + score9 + score10 + dependency_ratio + score7 + score8 + SRI,
+                   data = desc4)
+summary(model6)
+
+## extract coefficients from the model, exponentiate and CI
+tidy(model6, conf.int=TRUE, exponentiate = TRUE)
+```
